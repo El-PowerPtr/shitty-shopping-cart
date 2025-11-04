@@ -2,6 +2,7 @@ package main
 
 import (
     "context"
+    "github.com/valkey-io/valkey-go"
 )
 
 type CartManager interface {
@@ -12,4 +13,8 @@ type CartManager interface {
     RemoveItemInCart(uint64, uint64, int, context.Context) error
     FulkyRemoveItemFromCart(uint64, uint64, context.Context) error
     ResetCart(uint64, context.Context) (*Cart, error)
+}
+
+type ValkeyCartManager struct {
+    client valkey.Client
 }
