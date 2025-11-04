@@ -12,7 +12,7 @@ type CartManager interface {
     RemoveCart(uint64, context.Context) (*Cart, error)
     AddItemInCart(uint64, uint64, int, context.Context) error
     RemoveItemInCart(uint64, uint64, int, context.Context) error
-    FulkyRemoveItemFromCart(uint64, uint64, context.Context) error
+    FullyRemoveItemFromCart(uint64, uint64, context.Context) error
     ResetCart(uint64, context.Context) (*Cart, error)
 }
 
