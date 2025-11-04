@@ -18,3 +18,11 @@ type CartManager interface {
 type ValkeyCartManager struct {
     client valkey.Client
 }
+
+func NewValkeyCartManager(address string, user string, password string) (*ValkeyCartManager, error) {
+    client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{address}, Username: user, Password: password})
+    if err != nil {
+        return nil, err
+    }
+    return &ValkeyCartManager{client}, nil
+}
