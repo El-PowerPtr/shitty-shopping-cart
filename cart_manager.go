@@ -43,28 +43,25 @@ func (this *ValkeyCartManager) GetCart(id uint64, ctx context.Context) (*Cart, e
         return nil, err
     }
     
-    owner := dict["owner"]
-    ownerId, err := owner.AsUint64()
+    items := make(map[uint64]int, len(dict) - 1)
+    var owner uint64
     
-    if err != nil {
-        return nil, err
-    }
-    
-    items := dict["items"]
-    itemsMap, err := items.AsIntMap()
-    
-    if err != nil {
-        return nil, err
-    }
-    
-    cartItems := make(map[uint64]int, len(itemsMap))
-    for k, v := range itemsMap {
-        if i, err := strconv.ParseUint(k, 10, 64); err != nil {
+    for k, v := range dict {
+        if k == "owner" {
+            owner, err = v.AsUint64()
+            if err != nil {
+                return nil, err
+            }
+        } else if i, err := strconv.ParseUint(k, 10, 64); err != nil {
             return nil, err
         } else {
-            cartItems[i] = int(v)
+            ammount, err := v.AsInt64()
+            if err != nil {
+                return nil, err
+            }
+            items[i] = int(ammount)
         }
     }
     
-    return &Cart{ownerId, id, cartItems}, nil
+    return &Cart{owner, id, items}, nil
 }
