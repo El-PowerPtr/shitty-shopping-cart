@@ -11,9 +11,9 @@ type CartManager interface {
     GetCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
     AddCart(cart *Cart, ctx context.Context) error
     RemoveCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
-    AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) error
-    RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int, ctx context.Context) error
-    FullyRemoveItemFromCart(id uint64, owner uint64, item uint64, ctx context.Context) error
+    AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error)
+    RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error)
+    FullyRemoveItemFromCart(id uint64, owner uint64, item uint64, ctx context.Context) (uint64, error)
     ResetCart(id uint64, owner uint64, ctx context.Context) error
 }
 
@@ -128,4 +128,21 @@ func (this *ValkeyCartManager) ResetCart(id uint64, owner uint64, ctx context.Co
     r := this.client.Do(ctx, rst)
     
     return r.Error()
+}
+
+func (this *ValkeyCartManager) AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error) {
+    idStr := strconv.FormatUint(id, 10)
+    
+    if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
+        return 0, 0 ,err
+    }
+    itemStr := strconv.FormatUint(item, 10)
+    add := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(int64(ammount)).Build()
+    r := this.client.Do(ctx, add)
+    
+    if val, err := r.AsInt64(); err != nil {
+        return 0, 0, err
+    } else {
+        return item, int(val), nil
+    }
 }
