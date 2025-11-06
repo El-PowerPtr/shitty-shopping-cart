@@ -10,11 +10,11 @@ import (
 type CartManager interface {
     GetCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
     AddCart(cart *Cart, ctx context.Context) error
-    RemoveCart(uint64, context.Context) (*Cart, error)
-    AddItemInCart(uint64, uint64, int, context.Context) error
-    RemoveItemInCart(uint64, uint64, int, context.Context) error
-    FullyRemoveItemFromCart(uint64, uint64, context.Context) error
-    ResetCart(uint64, context.Context) (*Cart, error)
+    RemoveCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
+    AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) error
+    RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int, ctx context.Context) error
+    FullyRemoveItemFromCart(id uint64, owner uint64, item uint64, ctx context.Context) error
+    ResetCart(id uint64, owner uint64, ctx context.Context) error
 }
 
 type ValkeyCartManager struct {
@@ -29,33 +29,33 @@ func NewValkeyCartManager(address string, user string, password string) (*Valkey
     return &ValkeyCartManager{client}, nil
 }
 
-func (this *ValkeyCartManager) getOwner (id *string, ctx context.Context) (uint64, error) {
-    getOwner := this.client.B().Hget().Key(*id).Field("owner").Build()
+func (this *ValkeyCartManager) getErrIfDiffOwner (idStr *string, id uint64, owner uint64, ctx context.Context) error {
+    getOwner := this.client.B().Hget().Key(*idStr).Field("owner").Build()
     r := this.client.Do(ctx, getOwner)
     if realOwner, err := r.AsUint64(); err != nil {
-        return 0, err
+        return err
+    } else if realOwner != owner {
+        return &DiffOwnerError{id, owner, realOwner}
     } else {
-        return realOwner, nil
+        return nil
     }
 }
 
 func (this *ValkeyCartManager) GetCart(id uint64, owner uint64,ctx context.Context) (*Cart, error) {
     strId := strconv.FormatUint(id, 10)
     
-    if ro, err := this.getOwner(&strId, ctx); err != nil {
-        return nil, err
-    }  else if ro != owner {
-        return nil, &DiffOwnerError{id, owner, ro}
-    }
-    
-    cmd := this.client.B().Get().Key(strId).Build()
-    result := this.client.Do(ctx, cmd)
-    
-    if err := result.Error(); err != nil {
+    if err := this.getErrIfDiffOwner(&strId, id, owner, ctx); err != nil {
         return nil, err
     }
     
-    dict, err := result.AsIntMap()
+    g := this.client.B().Get().Key(strId).Build()
+    r := this.client.Do(ctx, g)
+    
+    if err := r.Error(); err != nil {
+        return nil, err
+    }
+    
+    dict, err := r.AsIntMap()
     
     if err != nil {
         return nil, err
@@ -78,24 +78,40 @@ func (this *ValkeyCartManager) GetCart(id uint64, owner uint64,ctx context.Conte
 
 func (this *ValkeyCartManager) AddCart(cart *Cart, ctx context.Context) error {
     id := strconv.FormatUint(cart.Id, 10)
-    check := this.client.B().Exists().Key(id).Build()
-    result := this.client.Do(ctx, check)
-    if exists, err := result.AsBool() ; err != nil {
+    e := this.client.B().Exists().Key(id).Build()
+    r := this.client.Do(ctx, e)
+    
+    if exists, err := r.AsBool() ; err != nil {
        return err 
     } else if exists {
         return &AlreadyExistingCartError{cart.Id}
     }
+    
     owner := strconv.FormatUint(cart.OwnerId, 10)
     fields := make(map[string]string, len(cart.Items) + 1)
     fields["owner"] = owner
+    
     for k, v := range cart.Items {
         item := strconv.FormatUint(k, 10)
         ammount := strconv.FormatInt(int64(v), 10)
         fields[item] = ammount
     }
-    create := this.client.B().Hset().Key(id).FieldValue().FieldValueIter(maps.All(fields)).Build()
     
-    r := this.client.Do(ctx, create)
+    c := this.client.B().Hset().Key(id).FieldValue().FieldValueIter(maps.All(fields)).Build()
+    r = this.client.Do(ctx, c)
+    
+    return r.Error()
+}
+
+func (this *ValkeyCartManager) RemoveCart(id uint64, owner uint64, ctx context.Context) error {
+    idStr := strconv.FormatUint(id, 10)
+    
+    if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
+        return err
+    }
+    
+    d := this.client.B().Del().Key(idStr).Build()
+    r := this.client.Do(ctx, d)
     
     return r.Error()
 }
