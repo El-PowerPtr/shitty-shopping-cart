@@ -115,3 +115,17 @@ func (this *ValkeyCartManager) RemoveCart(id uint64, owner uint64, ctx context.C
     
     return r.Error()
 }
+
+func (this *ValkeyCartManager) ResetCart(id uint64, owner uint64, ctx context.Context) error {
+    idStr := strconv.FormatUint(id, 10)
+    
+    if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
+        return err
+    }
+    
+    ownerStr := strconv.FormatUint(owner, 10)
+    rst := this.client.B().Set().Key(idStr).Value(ownerStr).Build()
+    r := this.client.Do(ctx, rst)
+    
+    return r.Error()
+}
