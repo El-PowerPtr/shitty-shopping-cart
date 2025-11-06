@@ -11,8 +11,8 @@ type CartManager interface {
     GetCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
     AddCart(cart *Cart, ctx context.Context) error
     RemoveCart(id uint64, owner uint64, ctx context.Context) (*Cart, error)
-    AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error)
-    RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error)
+    AddItemInCart(id uint64, owner uint64, item uint64, ammount int64, ctx context.Context) (uint64, int, error)
+    RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int64, ctx context.Context) (uint64, int64, error)
     FullyRemoveItemFromCart(id uint64, owner uint64, item uint64, ctx context.Context) (uint64, error)
     ResetCart(id uint64, owner uint64, ctx context.Context) error
 }
@@ -61,7 +61,7 @@ func (this *ValkeyCartManager) GetCart(id uint64, owner uint64,ctx context.Conte
         return nil, err
     }
     
-    items := make(map[uint64]int, len(dict) - 1)
+    items := make(map[uint64]int64, len(dict) - 1)
     
     for k, v := range dict {
         if k == "owner" {
@@ -69,7 +69,7 @@ func (this *ValkeyCartManager) GetCart(id uint64, owner uint64,ctx context.Conte
         } else if i, err := strconv.ParseUint(k, 10, 64); err != nil {
             return nil, err
         } else {
-            items[i] = int(v)
+            items[i] = v
         }
     }
     
@@ -93,7 +93,7 @@ func (this *ValkeyCartManager) AddCart(cart *Cart, ctx context.Context) error {
     
     for k, v := range cart.Items {
         item := strconv.FormatUint(k, 10)
-        ammount := strconv.FormatInt(int64(v), 10)
+        ammount := strconv.FormatInt(v, 10)
         fields[item] = ammount
     }
     
@@ -130,19 +130,47 @@ func (this *ValkeyCartManager) ResetCart(id uint64, owner uint64, ctx context.Co
     return r.Error()
 }
 
-func (this *ValkeyCartManager) AddItemInCart(id uint64, owner uint64, item uint64, ammount int, ctx context.Context) (uint64, int, error) {
+func (this *ValkeyCartManager) AddItemInCart(id uint64, owner uint64, item uint64, ammount int64, ctx context.Context) (uint64, int64, error) {
     idStr := strconv.FormatUint(id, 10)
     
     if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
         return 0, 0 ,err
     }
     itemStr := strconv.FormatUint(item, 10)
-    add := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(int64(ammount)).Build()
+    add := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(ammount).Build()
     r := this.client.Do(ctx, add)
     
     if val, err := r.AsInt64(); err != nil {
         return 0, 0, err
     } else {
-        return item, int(val), nil
+        return item, val, nil
+    }
+}
+
+func (this *ValkeyCartManager) RemoveItemInCart(id uint64,owner uint64, item uint64, ammount int64, ctx context.Context) (uint64, int64, error) {
+    idStr := strconv.FormatUint(id, 10)
+    
+    if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
+        return 0, 0 ,err
+    }
+    
+    itemStr := strconv.FormatUint(item, 10)
+    ga := this.client.B().Hget().Key(idStr).Field(itemStr).Build()
+    r := this.client.Do(ctx, ga)
+    
+    if current, err := r.AsInt64(); err != nil {
+        return 0, 0, err
+    } else if current < int64(ammount) {
+        // set to 0 if we have not enough items
+        return item, 0, nil
+    } else {
+        d := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(-ammount).Build()
+        r = this.client.Do(ctx, d)
+        
+        if val, err := r.AsInt64(); err != nil {
+            return 0, 0, err
+        } else {
+            return item, val, nil
+        }
     }
 }
