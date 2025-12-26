@@ -19,3 +19,11 @@ type DiffOwnerError struct {
 func (e *DiffOwnerError) Error() string {
     return fmt.Sprintf("The cart #%d has user #%d as owner, but user #%d is making the request.\n", e.cart, e.actualOwner, e.reqOwner)
 }
+
+type InvalidTokenError struct {
+    token string
+}
+
+func (e *InvalidTokenError) Error() string {
+    return fmt.Sprintf("%s.\n", e.token)
+}
