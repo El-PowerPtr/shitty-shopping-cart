@@ -1,5 +1,5 @@
-package main
 
+package main
 import (
     "context"
     "strconv"
@@ -163,14 +163,32 @@ func (this *ValkeyCartManager) RemoveItemInCart(id uint64,owner uint64, item uin
     } else if current < int64(ammount) {
         // set to 0 if we have not enough items
         return item, 0, nil
-    } else {
-        d := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(-ammount).Build()
-        r = this.client.Do(ctx, d)
+    } 
         
-        if val, err := r.AsInt64(); err != nil {
-            return 0, 0, err
-        } else {
-            return item, val, nil
-        }
+    d := this.client.B().Hincrby().Key(idStr).Field(itemStr).Increment(-ammount).Build()
+    r = this.client.Do(ctx, d)
+        
+    if val, err := r.AsInt64(); err != nil {
+        return 0, 0, err
+    } else {
+        return item, val, nil
+    }
+}
+
+func (this *ValkeyCartManager) FullyRemoveItemFromCart(id uint64, owner uint64, item uint64, ctx context.Context) (uint64, error) {
+    idStr := strconv.FormatUint(id, 10)
+    
+    if err := this.getErrIfDiffOwner(&idStr, id, owner, ctx); err != nil {
+        return 0 ,err
+    }
+    itemStr := strconv.FormatUint(item, 10)
+    
+    d := this.client.B().Hdel().Key(idStr).Field(itemStr).Build()
+    r := this.client.Do(ctx, d)
+    
+    if err := r.Error(); err != nil {
+        return 0, err
+    } else {
+        return item, nil
     }
 }
